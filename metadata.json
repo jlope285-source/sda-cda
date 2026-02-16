@@ -1,0 +1,5 @@
+{
+  "name": "Situacions d'Aprenentatge CDA",
+  "description": "Aplicació per a docents que genera Situacions d'Aprenentatge basades en la Competència Digital de l'Alumnat (CDA) seguint el model del Departament d'Educació.",
+  "requestFramePermissions": []
+}
