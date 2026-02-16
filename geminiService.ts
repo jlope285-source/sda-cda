@@ -1,9 +1,12 @@
 
+// @google/genai guidelines followed: Use GoogleGenAI, Type, and direct .text property.
 import { GoogleGenAI, Type } from "@google/genai";
 import { SelectionState, LearningSituation } from "./types";
 import { CDA_DATA, COMPETENCES } from "./constants";
 
+// Generate a learning situation using Gemini 3 Pro
 export const generateLearningSituation = async (state: SelectionState): Promise<LearningSituation> => {
+  // Always create a new instance right before making an API call as per guidelines
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const cycleData = CDA_DATA[state.cycle];
   
@@ -14,10 +17,6 @@ export const generateLearningSituation = async (state: SelectionState): Promise<
     })
     .filter((val): val is string => val !== null);
   
-  const selectedSaberTexts = state.selectedSaberIds
-    .map(id => cycleData.sabers.find(s => s.id === id)?.description)
-    .filter((val): val is string => !!val);
-
   const selectedCompTitles = state.selectedCompetenceIds
     .map(cid => COMPETENCES.find(c => c.id === cid)?.title)
     .filter(Boolean);
@@ -88,7 +87,7 @@ export const generateLearningSituation = async (state: SelectionState): Promise<
       model: "gemini-3-pro-preview",
       contents: prompt,
       config: {
-        temperature: 0.8,
+        temperature: 1,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -127,6 +126,7 @@ export const generateLearningSituation = async (state: SelectionState): Promise<
       }
     });
 
+    // Directly access .text property as per guidelines
     const jsonText = response.text;
     if (!jsonText) throw new Error("No text content returned from API.");
     return JSON.parse(jsonText.trim());
@@ -136,12 +136,14 @@ export const generateLearningSituation = async (state: SelectionState): Promise<
   }
 };
 
+// Generate an infographic for a session using Gemini 2.5 Flash Image
 export const generateSessionInfographic = async (
   sessionTitle: string, 
   activityDesc: string, 
   cycle: string, 
   robot: string | undefined
 ): Promise<string> => {
+  // New instance for every call
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const isFloorRobot = robot?.toLowerCase().includes('bot') || robot?.toLowerCase().includes('tale') || robot?.toLowerCase().includes('cubetto');
   
@@ -158,7 +160,7 @@ export const generateSessionInfographic = async (
       config: { imageConfig: { aspectRatio: "9:16" } }
     });
 
-    // FIX: Iterate through all parts to find the image part as per guidelines
+    // Iterate through all parts to find the image part
     const candidate = response.candidates?.[0];
     if (candidate?.content?.parts) {
       for (const part of candidate.content.parts) {

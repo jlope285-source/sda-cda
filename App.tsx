@@ -1,4 +1,6 @@
 
+// Fix: Clean up redundant 'as string[]' casts that were causing 'unknown' type errors.
+// Fix: Implement 'Requested entity was not found' error handling.
 import React, { useState, useMemo, useEffect } from 'react';
 import { EducationalCycle, SelectionState, LearningSituation, ActivitatDetallada, ClassGroup, StudentEvaluation, ProgramacioDetallada } from './types';
 import { CDA_DATA, COMPETENCES } from './constants';
@@ -110,10 +112,9 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const checkKey = async () => {
-      // @ts-ignore
-      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
-        // @ts-ignore
-        const hasKey = await window.aistudio.hasSelectedApiKey();
+      // Guideline check: hasSelectedApiKey
+      if ((window as any).aistudio && typeof (window as any).aistudio.hasSelectedApiKey === 'function') {
+        const hasKey = await (window as any).aistudio.hasSelectedApiKey();
         setHasUserKey(hasKey);
       }
     };
@@ -232,10 +233,9 @@ const App: React.FC = () => {
 
   const handleOpenKeySelector = async () => {
     try {
-      // @ts-ignore
-      if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
-        // @ts-ignore
-        await window.aistudio.openSelectKey();
+      if ((window as any).aistudio && typeof (window as any).aistudio.openSelectKey === 'function') {
+        await (window as any).aistudio.openSelectKey();
+        // Guideline: assume success and proceed
         setHasUserKey(true);
       }
     } catch (e) {
@@ -249,12 +249,20 @@ const App: React.FC = () => {
       return;
     }
     setLoading(true);
+    setError(null);
     try {
       const res = await generateLearningSituation(state);
       setResult(res);
       setStep(3);
     } catch (err: any) {
-      setError("Error en la generació.");
+      // Guideline: Handle "Requested entity was not found" by prompting for key selection
+      if (err.message?.includes("Requested entity was not found.")) {
+        setHasUserKey(false);
+        setError("S'ha produït un error amb la clau API. Torna-la a seleccionar des d'un projecte amb facturació activa.");
+        handleOpenKeySelector();
+      } else {
+        setError("Error en la generació. Revisa la teva connexió o prova-ho més tard.");
+      }
     } finally {
       setLoading(false);
     }
@@ -266,12 +274,15 @@ const App: React.FC = () => {
     try {
       const url = await generateSessionInfographic(act.titol, act.descripcio, state.cycle, state.robot);
       setSessionImages(prev => ({ ...prev, [key]: { url, loading: false } }));
-    } catch (err) {
+    } catch (err: any) {
+      if (err.message?.includes("Requested entity was not found.")) {
+        setHasUserKey(false);
+        handleOpenKeySelector();
+      }
       setSessionImages(prev => ({ ...prev, [key]: { url: '', loading: false } }));
     }
   };
 
-  /* Fix: Explicitly type the prog parameter to avoid unknown property access errors */
   const renderProgramacio = (prog: ProgramacioDetallada | undefined) => {
     if (!prog) return null;
     return (
@@ -282,7 +293,7 @@ const App: React.FC = () => {
           </h6>
           <p className="text-sm font-bold text-indigo-800 leading-relaxed italic mb-4">"{prog.pistesAlumne}"</p>
           <div className="flex flex-wrap gap-2">
-            {prog.blocsPrincipals && Array.isArray(prog.blocsPrincipals) && prog.blocsPrincipals.map((b: any, i: number) => (
+            {prog.blocsPrincipals && prog.blocsPrincipals.map((b, i) => (
               <div key={i} className={`px-3 py-1.5 rounded-lg border-2 text-[10px] font-black uppercase tracking-tight shadow-sm ${BLOCK_COLORS[b.categoria] || 'bg-slate-200 border-slate-300'}`}>
                 {b.nom}
               </div>
@@ -418,6 +429,13 @@ const App: React.FC = () => {
       </header>
 
       <main className="max-w-6xl mx-auto px-6">
+        {error && (
+            <div className="mb-8 p-6 bg-red-50 border-2 border-red-100 rounded-[2rem] text-red-700 font-bold flex justify-between items-center shadow-lg animate-fadeIn">
+                <span className="flex items-center gap-3">⚠️ {error}</span>
+                <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 font-black">✕</button>
+            </div>
+        )}
+
         {step === 1 && (
           <div className="bg-white rounded-[2.5rem] shadow-2xl p-10 space-y-12 animate-fadeIn border border-slate-100">
             <div className="flex flex-col md:flex-row justify-between items-center gap-6 border-b pb-8">
@@ -598,8 +616,7 @@ const App: React.FC = () => {
                             <div>
                                 <h4 className="text-[10px] font-black text-green-700 uppercase tracking-widest mb-3 italic">Materials físics i fitxes</h4>
                                 <div className="flex flex-wrap gap-2">
-                                    {/* Fix: Explicitly cast properties to satisfy TypeScript compiler on potential narrowing issues */}
-                                    {(result.materialsGlobals as string[] || []).map((mat: string, i: number) => (
+                                    {(result.materialsGlobals || []).map((mat, i) => (
                                         <span key={i} className="bg-white px-4 py-2 rounded-xl text-xs font-black text-slate-700 border border-green-200 shadow-sm">● {mat}</span>
                                     ))}
                                 </div>
@@ -608,8 +625,7 @@ const App: React.FC = () => {
                               <div>
                                 <h4 className="text-[10px] font-black text-green-700 uppercase tracking-widest mb-3 italic">Software i Extensions</h4>
                                 <div className="flex flex-wrap gap-2">
-                                    {/* Fix: Explicitly cast properties to satisfy TypeScript compiler on potential narrowing issues */}
-                                    {(result.extensions as string[] || []).map((ext: string, i: number) => (
+                                    {(result.extensions || []).map((ext, i) => (
                                         <span key={i} className="bg-white px-4 py-2 rounded-xl text-xs font-black text-slate-700 border border-green-200 shadow-sm">{ext}</span>
                                     ))}
                                 </div>
@@ -625,13 +641,11 @@ const App: React.FC = () => {
                     Desenvolupament de les Sessions
                   </h3>
                   <div className="space-y-6">
-                    {/* Fix: Cast mapped parts of the situation explicitly */}
-                    {(([] as ActivitatDetallada[]).concat(
-                      result.activitats.inicials || [],
-                      result.activitats.desenvolupament || [],
-                      result.activitats.sintesi || [],
-                      result.activitats.transferencia || []
-                    )).map((a: ActivitatDetallada, i: number) => renderActivitat(a, i))}
+                    {([...(result.activitats.inicials || []),
+                        ...(result.activitats.desenvolupament || []),
+                        ...(result.activitats.sintesi || []),
+                        ...(result.activitats.transferencia || [])]
+                    ).map((a, i) => renderActivitat(a, i))}
                   </div>
                 </section>
             </div>
@@ -646,7 +660,7 @@ const App: React.FC = () => {
         {step === 4 && result && (
           <div className="bg-white rounded-[3rem] shadow-2xl p-12 space-y-12 animate-fadeIn border border-slate-100">
             <h2 className="text-4xl font-black text-slate-800 tracking-tight border-b pb-8 flex justify-between items-center">
-                Registre d'Avaluació
+                <span>Registre d'Avaluació <span className="text-indigo-600 ml-4 font-black">{state.birthYear}-{state.classGroup}</span></span>
                 <button onClick={exportToCSV} className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest">Exportar CSV</button>
             </h2>
             <div className="bg-slate-50 p-10 rounded-[2.5rem] flex flex-col md:flex-row gap-6 shadow-inner">
@@ -658,8 +672,7 @@ const App: React.FC = () => {
                 <thead>
                   <tr className="bg-slate-900 text-white">
                     <th className="p-8 font-black text-[10px] uppercase tracking-widest border-r border-white/10 sticky left-0 bg-slate-900 z-10 min-w-[220px]">Alumne/a</th>
-                    {/* Fix: Explicitly cast result.criterisAvaluacio if narrowing is unstable */}
-                    {(result.criterisAvaluacio as any[]).map((c) => (
+                    {result.criterisAvaluacio.map((c) => (
                         <th key={c.id} className="p-8 font-black text-[10px] uppercase tracking-widest border-r border-white/10 text-center">CD {c.id}</th>
                     ))}
                   </tr>
@@ -668,7 +681,7 @@ const App: React.FC = () => {
                   {students.map(s => (
                     <tr key={s.id} className="border-b border-slate-100 hover:bg-indigo-50/20 transition-colors">
                       <td className="p-8 border-r border-slate-100 font-black text-slate-800 sticky left-0 bg-white">{s.name}</td>
-                      {(result.criterisAvaluacio as any[]).map((c) => (
+                      {result.criterisAvaluacio.map((c) => (
                         <td key={c.id} className="p-6 border-r border-slate-100">
                           <select className="w-full p-4 rounded-xl font-bold text-xs bg-slate-50 border-2 border-transparent focus:border-indigo-500 transition-all cursor-pointer shadow-sm text-center" value={s.scores[c.id] || ''} onChange={e => updateScore(s.id, c.id, e.target.value)}>
                             <option value="">--</option>
