@@ -7,7 +7,7 @@ import { CDA_DATA, COMPETENCES } from "./constants";
 // Generate a learning situation using Gemini 3 Pro
 export const generateLearningSituation = async (state: SelectionState): Promise<LearningSituation> => {
   // Always create a new instance right before making an API call as per guidelines
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_API_KEY });
   const cycleData = CDA_DATA[state.cycle];
   
   const selectedCriteriaTexts = state.selectedCriteriaIds
